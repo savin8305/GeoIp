@@ -1,14 +1,13 @@
 import { geolocation } from '@vercel/functions'
-import { type NextRequest, NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from "next/server";
 import countries from './lib/countries.json'
 
-// run only on homepage
+// Run on all routes
 export const config = {
-  matcher: '/',
+  matcher: '/:path*',
 }
 
 export async function middleware(req: NextRequest) {
-  const { nextUrl: url } = req
   const geo = geolocation(req)
   const country = geo.country || 'US'
   const city = geo.city || 'San Francisco'
@@ -16,17 +15,30 @@ export async function middleware(req: NextRequest) {
 
   const countryInfo = countries.find((x) => x.cca2 === country)
 
+  if (!countryInfo) {
+    return NextResponse.json({ error: 'Country not found' }, { status: 404 })
+  }
+
   const currencyCode = Object.keys(countryInfo.currencies)[0]
   const currency = countryInfo.currencies[currencyCode]
   const languages = Object.values(countryInfo.languages).join(', ')
 
-  url.searchParams.set('country', country)
-  url.searchParams.set('city', city)
-  url.searchParams.set('region', region)
-  url.searchParams.set('currencyCode', currencyCode)
-  url.searchParams.set('currencySymbol', currency.symbol)
-  url.searchParams.set('name', currency.name)
-  url.searchParams.set('languages', languages)
+  const geoData = {
+    country,
+    city,
+    region,
+    currencyCode,
+    currencySymbol: currency.symbol,
+    currencyName: currency.name,
+    languages,
+  }
 
-  return NextResponse.rewrite(url)
+  // Set CORS headers
+  const response = NextResponse.json(geoData)
+  response.headers.set('Access-Control-Allow-Origin', '*')
+  response.headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS')
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+
+  return response
 }
+
